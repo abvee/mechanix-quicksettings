@@ -84,12 +84,7 @@ impl Widget for Tiles {
         let settings = s.spawn(bottom, SettingsBuilder);
         let camera = s.spawn(bottom, CameraBuilder);
         let rotate = s.spawn(bottom, RotateBuilder);
-        let battery = s.spawn(
-            bottom,
-            BatteryBuilder {
-                font: b.font,
-            },
-        );
+        let battery = s.spawn(bottom, BatteryBuilder { font: b.font });
         // let secondary_display = s.spawn(bottom, DisplayTileBuilder);
 
         Tiles {
