@@ -78,7 +78,11 @@ impl Snapshot {
         props: Option<&PropMap>,
     ) -> Option<ObjectPath> {
         let ap = props.and_then(|props| prop::<ObjectPath>(props, "ActiveAccessPoint"));
-        if let Some(wifi) = self.connections.iter_mut().find(|wifi| &wifi.device == device) {
+        if let Some(wifi) = self
+            .connections
+            .iter_mut()
+            .find(|wifi| &wifi.device == device)
+        {
             wifi.access_point = ap.clone().filter(|path| path.as_str() != "/");
         }
         match ap {

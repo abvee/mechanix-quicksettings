@@ -5,7 +5,7 @@ mod services;
 mod tiles;
 
 use header::{HEADER_HEIGHT, HeaderBuilder};
-use services::UpowerModule;
+use services::{UpowerModule, WifiModule};
 use tiles::{GRID_HEIGHT, TilesBuilder};
 
 // Initial window size only; the panel fills the actual window dimensions.
@@ -181,6 +181,7 @@ fn main() {
     app.add_module(RingModule::default())
         .add_module(DBusModule::new().system())
         .add_module(UpowerModule)
+        .add_module(WifiModule)
         .add_module(
             WaylandModule::new()
                 .bind::<WlCompositor>()

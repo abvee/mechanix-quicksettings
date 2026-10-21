@@ -7,7 +7,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use types::{WifiState, WifiStatus};
+pub use types::{WifiChanged, WifiState, WifiStatus};
 
 use std::collections::{HashMap, HashSet};
 

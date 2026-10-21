@@ -227,7 +227,11 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     assert_eq!(first_connection.strength, 15);
     assert_eq!(first_connection.ssid, b"Home");
     assert_eq!(
-        snapshot.connections[1].connection.as_ref().unwrap().strength,
+        snapshot.connections[1]
+            .connection
+            .as_ref()
+            .unwrap()
+            .strength,
         80
     );
     assert_eq!(
@@ -253,7 +257,10 @@ fn ssid_updates_preserve_empty_and_non_utf8_bytes_without_changing_strength() {
     );
     snapshot.wireless(
         &device,
-        Some(&props(&[("ActiveAccessPoint", Value::ObjectPath(ap.clone()))])),
+        Some(&props(&[(
+            "ActiveAccessPoint",
+            Value::ObjectPath(ap.clone()),
+        )])),
     );
     snapshot.access_point(&ap, Some(&props(&[("Strength", Value::U8(35))])));
 

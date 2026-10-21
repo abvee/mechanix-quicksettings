@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use super::interface::{AP, DEVICE, NM, PATH, WIRELESS};
 use super::types::{Request, Snapshot};
-use super::{WifiState, WifiStatus};
+use super::{WifiChanged, WifiState, WifiStatus};
 use mecha_wayland::prelude::*;
 
 fn get_all(app: &mut App, path: ObjectPath, interface: &'static str, request: Request) {
@@ -63,12 +63,11 @@ pub(super) fn relevant_change(
 }
 
 fn publish_state(app: &mut App, state: WifiState) {
-    if app.resource::<WifiStatus>().state == state {
-        return;
-    }
     app.resource_mut::<WifiStatus>().state = state;
-    // let bars: Vec<NodeId> = app.widgets::<StatusBar>().map(|(id, _)| id).collect();
-    // app.emit(StatusUpdate::Wifi(state), bars);
+    let root = app.root();
+    let mut targets = vec![root];
+    targets.extend(app.descendants(root));
+    app.emit(WifiChanged, targets);
 }
 
 fn reply_props(event: &MethodReply, interface: &str) -> Option<PropMap> {

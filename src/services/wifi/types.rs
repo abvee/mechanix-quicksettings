@@ -21,6 +21,10 @@ impl WifiState {
     }
 }
 
+/// The UI should reread the current `WifiStatus` snapshot.
+pub struct WifiChanged;
+impl Event for WifiChanged {}
+
 pub(super) struct Matches {
     pub(super) properties: MatchId,
     pub(super) devices: MatchId,
@@ -31,7 +35,7 @@ pub(super) struct Matches {
 pub struct WifiStatus {
     pub state: WifiState,
     pub(super) pending: HashMap<CallId, Request>,
-    pub(super) snapshot: Snapshot,
+    pub(crate) snapshot: Snapshot,
     pub(super) active_aps: HashSet<ObjectPath>,
     pub(super) dirty: bool,
     pub(super) matches: Matches,
@@ -52,27 +56,27 @@ pub(super) enum Request {
 }
 
 #[derive(Default)]
-pub(super) struct Snapshot {
+pub(crate) struct Snapshot {
     /// Is wifi enabled ?
     /// None means we haven't decided yet.
-    pub(super) radio: Option<bool>,
-    pub(super) connected: bool,
-    pub(super) strength: Option<u8>,
-    pub(super) connections: SmallVec<[WifiDevice; 4]>,
-    pub(super) active_aps: HashSet<ObjectPath>,
-    pub(super) valid: bool,
+    pub(crate) radio: Option<bool>,
+    pub(crate) connected: bool,
+    pub(crate) strength: Option<u8>,
+    pub(crate) connections: SmallVec<[WifiDevice; 4]>,
+    pub(crate) active_aps: HashSet<ObjectPath>,
+    pub(crate) valid: bool,
 }
 
-pub(super) struct WifiDevice {
-    pub(super) device: ObjectPath,
+pub(crate) struct WifiDevice {
+    pub(crate) device: ObjectPath,
     /// None if device isn't connected to anything yet
-    pub(super) access_point: Option<ObjectPath>,
-    pub(super) connection: Option<Connection>,
+    pub(crate) access_point: Option<ObjectPath>,
+    pub(crate) connection: Option<Connection>,
 }
 
-pub(super) struct Connection {
+pub(crate) struct Connection {
     /// Raw SSID bytes, decoded for display by the UI.
-    pub(super) ssid: Vec<u8>,
+    pub(crate) ssid: Vec<u8>,
     /// Strength of the connection
-    pub(super) strength: u8,
+    pub(crate) strength: u8,
 }
