@@ -65,7 +65,6 @@ impl Widget for Tiles {
             top,
             WifiBuilder {
                 font: b.font,
-                name: "Office 01".into(),
             },
         );
         let bluetooth = s.spawn(
