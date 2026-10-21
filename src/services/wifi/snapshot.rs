@@ -2,7 +2,7 @@
 use mecha_wayland::prelude::*;
 
 use super::interface::{ACTIVATED, WIFI_DEVICE};
-use super::types::{Snapshot, WifiDevice, WifiState};
+use super::types::{Connection, Snapshot, WifiDevice, WifiState};
 
 impl Snapshot {
     pub(super) fn state(&self) -> Option<WifiState> {
@@ -98,6 +98,15 @@ impl Snapshot {
             if self.active_aps.contains(path) {
                 if let Some(strength) = prop::<u8>(props, "Strength") {
                     self.record_strength(strength);
+                    for wifi in &mut self.connections {
+                        if wifi.access_point.as_ref() == Some(path) {
+                            let connection = wifi.connection.get_or_insert_with(|| Connection {
+                                ssid: String::new(),
+                                strength,
+                            });
+                            connection.strength = strength;
+                        }
+                    }
                 }
                 // TODO: add SSID storage here
             }

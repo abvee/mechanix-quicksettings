@@ -192,6 +192,12 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     assert_eq!(snapshot.connections[0].access_point, Some(first.clone()));
     snapshot.access_point(&first, Some(&props(&[("Strength", Value::U8(35))])));
     assert_eq!(snapshot.state(), Some(WifiState::Low));
+    for wifi in &snapshot.connections {
+        let connection = wifi.connection.as_ref().unwrap();
+        assert_eq!(connection.strength, 35);
+        assert!(connection.ssid.is_empty());
+    }
+    snapshot.connections[0].connection.as_mut().unwrap().ssid = "Home".into();
     let second_props = props(&[("ActiveAccessPoint", Value::ObjectPath(second.clone()))]);
     assert_eq!(
         snapshot.wireless(&second_device, Some(&second_props)),
@@ -206,6 +212,13 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     let unrelated = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/3").unwrap();
     snapshot.access_point(&unrelated, Some(&props(&[("Strength", Value::U8(100))])));
     assert_eq!(snapshot.strength, Some(80));
+    let first_connection = snapshot.connections[0].connection.as_ref().unwrap();
+    assert_eq!(first_connection.strength, 15);
+    assert_eq!(first_connection.ssid, "Home");
+    assert_eq!(
+        snapshot.connections[1].connection.as_ref().unwrap().strength,
+        80
+    );
     assert_eq!(snapshot.wireless(&first_device, Some(&no_ap)), None);
     assert!(snapshot.connections[0].access_point.is_none());
     assert_eq!(snapshot.connections[1].access_point, Some(second));

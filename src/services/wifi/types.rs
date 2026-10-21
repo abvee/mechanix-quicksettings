@@ -72,7 +72,7 @@ pub(super) struct WifiDevice {
 
 pub(super) struct Connection {
     /// ssid name
-    ssid: String,
+    pub(super) ssid: String,
     /// Strength of the connection
-    strength: u8,
+    pub(super) strength: u8,
 }
