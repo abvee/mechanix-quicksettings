@@ -48,6 +48,7 @@ impl Snapshot {
             Some(WIFI_DEVICE) => {
                 self.connections.push(WifiDevice {
                     device: path.clone(),
+						  access_point: None,
                     connection: None,
                 });
 

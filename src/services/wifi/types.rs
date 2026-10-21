@@ -66,13 +66,12 @@ pub(super) struct Snapshot {
 
 pub(super) struct WifiDevice {
     pub(super) device: ObjectPath,
-    /// None until connection information is populated.
-    pub(super) connection: Option<Connection>,
+    /// None if device isn't connected to anything yet
+    pub(super) access_point: Option<ObjectPath>,
+	 pub(super) connection: Option<Connection>
 }
 
 pub(super) struct Connection {
-    /// Network manager's DBus path
-    access_point: ObjectPath,
     /// ssid name
     ssid: String,
     /// Strength of the connection
