@@ -93,26 +93,50 @@ fn manager_requires_a_complete_radio_read() {
 
 #[test]
 fn devices_only_follow_activated_wifi_and_preserve_unknown_scans() {
+    let wired = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/1").unwrap();
+    let disconnected = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/2").unwrap();
+    let activated = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/3").unwrap();
     let mut snapshot = Snapshot {
         radio: Some(true),
         valid: true,
         ..Snapshot::default()
     };
-    assert!(!snapshot.device(Some(&props(&[
-        ("DeviceType", Value::U32(1)),
-        ("State", Value::U32(ACTIVATED)),
-    ]))));
-    assert!(!snapshot.device(Some(&props(&[
-        ("DeviceType", Value::U32(WIFI_DEVICE)),
-        ("State", Value::U32(30)),
-    ]))));
+    assert!(!snapshot.device(
+        &wired,
+        Some(&props(&[
+            ("DeviceType", Value::U32(1)),
+            ("State", Value::U32(ACTIVATED)),
+        ]))
+    ));
+    assert!(snapshot.connections.is_empty());
+    assert!(!snapshot.device(
+        &disconnected,
+        Some(&props(&[
+            ("DeviceType", Value::U32(WIFI_DEVICE)),
+            ("State", Value::U32(30)),
+        ]))
+    ));
     assert_eq!(snapshot.state(), Some(WifiState::Disconnected));
-    assert!(snapshot.device(Some(&props(&[
-        ("DeviceType", Value::U32(WIFI_DEVICE)),
-        ("State", Value::U32(ACTIVATED)),
-    ]))));
+    assert_eq!(snapshot.connections.len(), 1);
+    assert_eq!(snapshot.connections[0].device, disconnected);
+    assert!(snapshot.device(
+        &activated,
+        Some(&props(&[
+            ("DeviceType", Value::U32(WIFI_DEVICE)),
+            ("State", Value::U32(ACTIVATED)),
+        ]))
+    ));
     assert_eq!(snapshot.state(), Some(WifiState::None));
-    assert!(!snapshot.device(None));
+    assert_eq!(snapshot.connections.len(), 2);
+    assert_eq!(snapshot.connections[1].device, activated);
+    assert!(
+        snapshot
+            .connections
+            .iter()
+            .all(|device| device.connection.is_none())
+    );
+    assert!(!snapshot.device(&wired, None));
+    assert_eq!(snapshot.connections.len(), 2);
     assert_eq!(snapshot.state(), None);
 
     for missing in [
@@ -125,7 +149,7 @@ fn devices_only_follow_activated_wifi_and_preserve_unknown_scans() {
             radio: Some(true),
             ..Snapshot::default()
         };
-        assert!(!snapshot.device(Some(&missing)));
+        assert!(!snapshot.device(&disconnected, Some(&missing)));
         assert_eq!(snapshot.state(), None);
     }
 }

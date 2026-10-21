@@ -2,7 +2,7 @@
 use mecha_wayland::prelude::*;
 
 use super::interface::{ACTIVATED, WIFI_DEVICE};
-use super::types::{Snapshot, WifiState};
+use super::types::{Snapshot, WifiDevice, WifiState};
 
 impl Snapshot {
     pub(super) fn state(&self) -> Option<WifiState> {
@@ -39,23 +39,30 @@ impl Snapshot {
         self.radio == Some(true)
     }
 
-    pub(super) fn device(&mut self, props: Option<&PropMap>) -> bool {
+    pub(super) fn device(&mut self, path: &ObjectPath, props: Option<&PropMap>) -> bool {
         let Some(props) = props else {
             self.valid = false;
             return false;
         };
         match prop::<u32>(props, "DeviceType") {
-            Some(WIFI_DEVICE) => match prop::<u32>(props, "State") {
-                Some(ACTIVATED) => {
-                    self.connected = true;
-                    true
+            Some(WIFI_DEVICE) => {
+                self.connections.push(WifiDevice {
+                    device: path.clone(),
+                    connection: None,
+                });
+
+                match prop::<u32>(props, "State") {
+                    Some(ACTIVATED) => {
+                        self.connected = true;
+                        true
+                    }
+                    Some(_) => false,
+                    None => {
+                        self.valid = false;
+                        false
+                    }
                 }
-                Some(_) => false,
-                None => {
-                    self.valid = false;
-                    false
-                }
-            },
+            }
             Some(_) => false,
             None => {
                 self.valid = false;
@@ -84,6 +91,7 @@ impl Snapshot {
                 if let Some(strength) = prop::<u8>(props, "Strength") {
                     self.record_strength(strength);
                 }
+                // TODO: add SSID storage here
             }
         } else {
             self.valid = false;

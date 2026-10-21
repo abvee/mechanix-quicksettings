@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 mecha-wayland = { git = "https://github.com/indegrowl/mecha-wayland", branch = "dev" }
+smallvec = "1"

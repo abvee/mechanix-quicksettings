@@ -20,6 +20,7 @@ fn get_all(app: &mut App, path: ObjectPath, interface: &'static str, request: Re
 pub(super) fn request_snapshot(app: &mut App) {
     if !app.resource::<WifiStatus>().pending.is_empty() {
         app.resource_mut::<WifiStatus>().dirty = true;
+        // TODO: why keep this ^ in the first place ?
         return;
     }
     {
@@ -134,8 +135,10 @@ pub(super) fn on_snapshot_reply(app: &mut App, event: &MethodReply) {
             if app
                 .resource_mut::<WifiStatus>()
                 .snapshot
-                .device(props.as_ref())
+                .device(&path, props.as_ref())
             {
+                // TODO: Request::Devices shouldn't be sent again until
+                // NetworkManager has been restarted.
                 get_all(app, path, WIRELESS, Request::Wireless);
             }
         }
@@ -194,6 +197,9 @@ pub(super) fn on_signal(app: &mut App, event: &SignalReceived) {
             Some("DeviceAdded" | "DeviceRemoved")
         )
     {
+        // TODO: don't request a snapshot, just remove that device's data all
+        // data from the resource if DeviceRemoved
+        // If device added, queue up Request::Device(path)
         request_snapshot(app);
     } else if properties {
         if let Ok((interface, changed, invalidated)) = PropertiesChanged::parse(&event.msg) {
@@ -205,6 +211,8 @@ pub(super) fn on_signal(app: &mut App, event: &SignalReceived) {
                 &wifi.active_aps,
                 &wifi.snapshot.active_aps,
             ) {
+                // TODO: better handling required here instead of requesting
+                // snapshots all over again
                 request_snapshot(app);
             }
         }

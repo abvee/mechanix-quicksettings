@@ -27,6 +27,7 @@ impl Module for WifiModule {
                 owner: bus.add_match(interface::owner_changed()),
             }
         };
+
         app.insert_resource(WifiStatus {
             state: WifiState::Disabled,
             pending: HashMap::new(),
@@ -38,6 +39,7 @@ impl Module for WifiModule {
         app.system(backend::on_snapshot_reply)
             .system(backend::on_signal)
             .system(backend::on_disconnect);
+
         backend::request_snapshot(app);
     }
 }
