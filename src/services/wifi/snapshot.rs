@@ -5,11 +5,17 @@ use super::interface::{ACTIVATED, WIFI_DEVICE};
 use super::types::{Connection, Snapshot, WifiDevice, WifiState};
 
 impl Snapshot {
+    pub(crate) fn radio_enabled(&self) -> Option<bool> {
+        self.wireless_enabled
+            .zip(self.wireless_hardware_enabled)
+            .map(|(enabled, hardware_enabled)| enabled && hardware_enabled)
+    }
+
     pub(super) fn state(&self) -> Option<WifiState> {
         if !self.valid {
             return None;
         }
-        match self.radio? {
+        match self.radio_enabled()? {
             false => Some(WifiState::Disabled),
             true if self.connected => Some(match self.strength {
                 Some(0..=24) | None => WifiState::None,
@@ -29,14 +35,11 @@ impl Snapshot {
     }
 
     pub(super) fn manager(&mut self, props: Option<&PropMap>) -> bool {
-        self.radio = props.and_then(|props| {
-            Some(
-                prop::<bool>(props, "WirelessEnabled")?
-                    && prop::<bool>(props, "WirelessHardwareEnabled")?,
-            )
-        });
-        self.valid &= self.radio.is_some();
-        self.radio == Some(true)
+        self.wireless_enabled = props.and_then(|props| prop::<bool>(props, "WirelessEnabled"));
+        self.wireless_hardware_enabled =
+            props.and_then(|props| prop::<bool>(props, "WirelessHardwareEnabled"));
+        self.valid &= self.radio_enabled().is_some();
+        self.radio_enabled() == Some(true)
     }
 
     pub(super) fn device(&mut self, path: &ObjectPath, props: Option<&PropMap>) -> bool {

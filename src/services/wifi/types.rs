@@ -57,9 +57,10 @@ pub(super) enum Request {
 
 #[derive(Default)]
 pub(crate) struct Snapshot {
-    /// Is wifi enabled ?
-    /// None means we haven't decided yet.
-    pub(crate) radio: Option<bool>,
+    /// NetworkManager's software Wi-Fi switch; None means unknown.
+    pub(crate) wireless_enabled: Option<bool>,
+    /// Whether Wi-Fi is enabled by hardware; None means unknown.
+    pub(crate) wireless_hardware_enabled: Option<bool>,
     pub(crate) connected: bool,
     pub(crate) strength: Option<u8>,
     pub(crate) connections: SmallVec<[WifiDevice; 4]>,

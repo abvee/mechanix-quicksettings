@@ -49,7 +49,7 @@ impl Widget for Wifi {
                 let label = connection
                     .map(|connection| String::from_utf8_lossy(&connection.ssid).into_owned())
                     .unwrap_or_default();
-                let sprite = if !wifi.snapshot.valid || wifi.snapshot.radio != Some(true) {
+                let sprite = if !wifi.snapshot.valid || wifi.snapshot.radio_enabled() != Some(true) {
                     disabled
                 } else {
                     match connection.map(|connection| connection.strength) {

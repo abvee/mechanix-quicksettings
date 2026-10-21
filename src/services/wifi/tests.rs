@@ -18,12 +18,13 @@ fn props(entries: &[(&str, Value)]) -> PropMap {
 fn radio_and_connection_states() {
     let mut snapshot = Snapshot {
         valid: true,
-        radio: Some(false),
+        wireless_enabled: Some(false),
+        wireless_hardware_enabled: Some(true),
         connected: true,
         ..Snapshot::default()
     };
     assert_eq!(snapshot.state(), Some(WifiState::Disabled));
-    snapshot.radio = Some(true);
+    snapshot.wireless_enabled = Some(true);
     snapshot.connected = false;
     assert_eq!(snapshot.state(), Some(WifiState::Disconnected));
     snapshot.connected = true;
@@ -53,7 +54,8 @@ fn incomplete_scan_does_not_publish_disconnected() {
         ..Snapshot::default()
     };
     assert_eq!(snapshot.state(), None);
-    snapshot.radio = Some(true);
+    snapshot.wireless_enabled = Some(true);
+    snapshot.wireless_hardware_enabled = Some(true);
     snapshot.valid = false;
     assert_eq!(snapshot.state(), None);
 }
@@ -75,18 +77,52 @@ fn manager_requires_a_complete_radio_read() {
             ("WirelessHardwareEnabled", Value::Bool(hardware)),
         ]);
         assert_eq!(snapshot.manager(Some(&radio)), enabled && hardware);
+        assert_eq!(snapshot.wireless_enabled, Some(enabled));
+        assert_eq!(snapshot.wireless_hardware_enabled, Some(hardware));
         assert_eq!(snapshot.state(), expected);
     }
-    for radio in [
-        None,
-        Some(props(&[("WirelessEnabled", Value::Bool(true))])),
-        Some(props(&[("WirelessEnabled", Value::U32(1))])),
+    for (radio, enabled, hardware) in [
+        (None, None, None),
+        (
+            Some(props(&[("WirelessEnabled", Value::Bool(true))])),
+            Some(true),
+            None,
+        ),
+        (
+            Some(props(&[("WirelessEnabled", Value::Bool(false))])),
+            Some(false),
+            None,
+        ),
+        (
+            Some(props(&[("WirelessHardwareEnabled", Value::Bool(true))])),
+            None,
+            Some(true),
+        ),
+        (
+            Some(props(&[
+                ("WirelessEnabled", Value::U32(1)),
+                ("WirelessHardwareEnabled", Value::Bool(false)),
+            ])),
+            None,
+            Some(false),
+        ),
+        (
+            Some(props(&[
+                ("WirelessEnabled", Value::Bool(false)),
+                ("WirelessHardwareEnabled", Value::U32(1)),
+            ])),
+            Some(false),
+            None,
+        ),
     ] {
         let mut snapshot = Snapshot {
             valid: true,
             ..Snapshot::default()
         };
         assert!(!snapshot.manager(radio.as_ref()));
+        assert_eq!(snapshot.wireless_enabled, enabled);
+        assert_eq!(snapshot.wireless_hardware_enabled, hardware);
+        assert_eq!(snapshot.radio_enabled(), None);
         assert_eq!(snapshot.state(), None);
     }
 }
@@ -97,7 +133,8 @@ fn devices_only_follow_activated_wifi_and_preserve_unknown_scans() {
     let disconnected = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/2").unwrap();
     let activated = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/3").unwrap();
     let mut snapshot = Snapshot {
-        radio: Some(true),
+        wireless_enabled: Some(true),
+        wireless_hardware_enabled: Some(true),
         valid: true,
         ..Snapshot::default()
     };
@@ -146,7 +183,8 @@ fn devices_only_follow_activated_wifi_and_preserve_unknown_scans() {
     ] {
         let mut snapshot = Snapshot {
             valid: true,
-            radio: Some(true),
+            wireless_enabled: Some(true),
+            wireless_hardware_enabled: Some(true),
             ..Snapshot::default()
         };
         assert!(!snapshot.device(&disconnected, Some(&missing)));
@@ -158,7 +196,8 @@ fn devices_only_follow_activated_wifi_and_preserve_unknown_scans() {
 fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     let mut snapshot = Snapshot {
         valid: true,
-        radio: Some(true),
+        wireless_enabled: Some(true),
+        wireless_hardware_enabled: Some(true),
         connected: true,
         ..Snapshot::default()
     };
@@ -289,7 +328,8 @@ fn missing_ap_properties_do_not_forge_a_connection_or_strength() {
     for wireless in [None, Some(PropMap::new())] {
         let mut snapshot = Snapshot {
             valid: true,
-            radio: Some(true),
+            wireless_enabled: Some(true),
+            wireless_hardware_enabled: Some(true),
             connected: true,
             ..Snapshot::default()
         };
@@ -307,7 +347,8 @@ fn missing_ap_properties_do_not_forge_a_connection_or_strength() {
     let ap = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/1").unwrap();
     let mut snapshot = Snapshot {
         valid: true,
-        radio: Some(true),
+        wireless_enabled: Some(true),
+        wireless_hardware_enabled: Some(true),
         connected: true,
         ..Snapshot::default()
     };
