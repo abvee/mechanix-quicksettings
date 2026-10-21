@@ -190,14 +190,19 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     // Deduplicating the AP read must still record it on the other device.
     assert_eq!(snapshot.wireless(&first_device, Some(&first_props)), None);
     assert_eq!(snapshot.connections[0].access_point, Some(first.clone()));
-    snapshot.access_point(&first, Some(&props(&[("Strength", Value::U8(35))])));
+    snapshot.access_point(
+        &first,
+        Some(&props(&[
+            ("Strength", Value::U8(35)),
+            ("Ssid", Value::from(b"Home".to_vec())),
+        ])),
+    );
     assert_eq!(snapshot.state(), Some(WifiState::Low));
     for wifi in &snapshot.connections {
         let connection = wifi.connection.as_ref().unwrap();
         assert_eq!(connection.strength, 35);
-        assert!(connection.ssid.is_empty());
+        assert_eq!(connection.ssid, b"Home");
     }
-    snapshot.connections[0].connection.as_mut().unwrap().ssid = "Home".into();
     let second_props = props(&[("ActiveAccessPoint", Value::ObjectPath(second.clone()))]);
     assert_eq!(
         snapshot.wireless(&second_device, Some(&second_props)),
@@ -205,7 +210,13 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     );
     assert_eq!(snapshot.connections[0].access_point, Some(first.clone()));
     assert_eq!(snapshot.connections[1].access_point, Some(second.clone()));
-    snapshot.access_point(&second, Some(&props(&[("Strength", Value::U8(80))])));
+    snapshot.access_point(
+        &second,
+        Some(&props(&[
+            ("Strength", Value::U8(80)),
+            ("Ssid", Value::from("Café".as_bytes().to_vec())),
+        ])),
+    );
     assert_eq!(snapshot.state(), Some(WifiState::High));
     snapshot.access_point(&first, Some(&props(&[("Strength", Value::U8(15))])));
     assert_eq!(snapshot.state(), Some(WifiState::High));
@@ -214,14 +225,55 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     assert_eq!(snapshot.strength, Some(80));
     let first_connection = snapshot.connections[0].connection.as_ref().unwrap();
     assert_eq!(first_connection.strength, 15);
-    assert_eq!(first_connection.ssid, "Home");
+    assert_eq!(first_connection.ssid, b"Home");
     assert_eq!(
         snapshot.connections[1].connection.as_ref().unwrap().strength,
         80
     );
+    assert_eq!(
+        snapshot.connections[1].connection.as_ref().unwrap().ssid,
+        "Café".as_bytes()
+    );
     assert_eq!(snapshot.wireless(&first_device, Some(&no_ap)), None);
     assert!(snapshot.connections[0].access_point.is_none());
     assert_eq!(snapshot.connections[1].access_point, Some(second));
+}
+
+#[test]
+fn ssid_updates_preserve_empty_and_non_utf8_bytes_without_changing_strength() {
+    let device = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/1").unwrap();
+    let ap = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/1").unwrap();
+    let mut snapshot = Snapshot::default();
+    snapshot.device(
+        &device,
+        Some(&props(&[
+            ("DeviceType", Value::U32(WIFI_DEVICE)),
+            ("State", Value::U32(ACTIVATED)),
+        ])),
+    );
+    snapshot.wireless(
+        &device,
+        Some(&props(&[("ActiveAccessPoint", Value::ObjectPath(ap.clone()))])),
+    );
+    snapshot.access_point(&ap, Some(&props(&[("Strength", Value::U8(35))])));
+
+    for bytes in [vec![], vec![b'A', 0xff]] {
+        snapshot.access_point(&ap, Some(&props(&[("Ssid", Value::from(bytes.clone()))])));
+        let connection = snapshot.connections[0].connection.as_ref().unwrap();
+        assert_eq!(connection.ssid, bytes);
+        assert_eq!(connection.strength, 35);
+    }
+
+    // A D-Bus string is not a valid SSID byte array.
+    snapshot.access_point(
+        &ap,
+        Some(&props(&[("Ssid", Value::Str("wrong type".into()))])),
+    );
+    assert_eq!(
+        snapshot.connections[0].connection.as_ref().unwrap().ssid,
+        [b'A', 0xff]
+    );
+    assert_eq!(snapshot.strength, Some(35));
 }
 
 #[test]

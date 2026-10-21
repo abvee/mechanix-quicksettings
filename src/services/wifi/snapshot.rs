@@ -101,14 +101,22 @@ impl Snapshot {
                     for wifi in &mut self.connections {
                         if wifi.access_point.as_ref() == Some(path) {
                             let connection = wifi.connection.get_or_insert_with(|| Connection {
-                                ssid: String::new(),
+                                ssid: Vec::new(),
                                 strength,
                             });
                             connection.strength = strength;
                         }
                     }
                 }
-                // TODO: add SSID storage here
+                if let Some(ssid) = prop::<Vec<u8>>(props, "Ssid") {
+                    for wifi in &mut self.connections {
+                        if wifi.access_point.as_ref() == Some(path) {
+                            if let Some(connection) = &mut wifi.connection {
+                                connection.ssid.clone_from(&ssid);
+                            }
+                        }
+                    }
+                }
             }
         } else {
             self.valid = false;

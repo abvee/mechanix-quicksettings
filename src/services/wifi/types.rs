@@ -71,8 +71,8 @@ pub(super) struct WifiDevice {
 }
 
 pub(super) struct Connection {
-    /// ssid name
-    pub(super) ssid: String,
+    /// Raw SSID bytes, decoded for display by the UI.
+    pub(super) ssid: Vec<u8>,
     /// Strength of the connection
     pub(super) strength: u8,
 }
