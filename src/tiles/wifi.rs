@@ -2,7 +2,7 @@ use mecha_wayland::prelude::*;
 
 use super::{build_label, build_tile_with_sprite};
 use crate::load_icon;
-use crate::services::{WifiChanged, WifiStatus};
+use crate::services::{SetWifiEnabled, WifiChanged, WifiStatus};
 
 // Inclusive lower bounds for the signal-strength icons (0–100%).
 const WIFI_LOW_MIN_PERCENT: u8 = 25;
@@ -34,6 +34,12 @@ impl Widget for Wifi {
         .map(|svg| load_icon(&mut s.resource_mut::<Atlas>(), svg));
         let icon = build_tile_with_sprite(me, s, disabled);
         let name = build_label(me, s, b.font, "");
+        s.on::<Clicked>(me, |ctx, _| {
+            let enabled = ctx.resource::<WifiStatus>().snapshot.wireless_enabled;
+            if let Some(enabled) = enabled {
+                ctx.signal(SetWifiEnabled(!enabled));
+            }
+        });
         s.on::<WifiChanged>(me, move |ctx, _| {
             let (label, sprite) = {
                 let wifi = ctx.resource::<WifiStatus>();

@@ -25,6 +25,10 @@ impl WifiState {
 pub struct WifiChanged;
 impl Event for WifiChanged {}
 
+/// Request a change to NetworkManager's software Wi-Fi switch.
+pub struct SetWifiEnabled(pub bool);
+impl Signal for SetWifiEnabled {}
+
 pub(super) struct Matches {
     pub(super) properties: MatchId,
     pub(super) devices: MatchId,
@@ -43,6 +47,8 @@ pub struct WifiStatus {
 impl Resource for WifiStatus {}
 
 pub(super) enum Request {
+    /// Set the manager's WirelessEnabled property.
+    SetWirelessEnabled,
     /// Query org.freedesktop.NetworkManager directly
     Manager,
     /// call GetDevices()

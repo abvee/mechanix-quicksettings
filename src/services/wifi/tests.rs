@@ -15,6 +15,125 @@ fn props(entries: &[(&str, Value)]) -> PropMap {
 }
 
 #[test]
+fn wifi_control_sends_boolean_properties_and_refreshes_after_replies() {
+    use super::types::Request;
+    use super::{SetWifiEnabled, WifiModule, WifiStatus};
+    use std::collections::VecDeque;
+    use std::io::{ErrorKind, Read, Write};
+    use std::os::unix::net::UnixStream;
+
+    // A private peer supplies the handshake; no real NetworkManager is contacted.
+    fn setup() -> (App, UnixStream) {
+        let (client, mut peer) = UnixStream::pair().unwrap();
+        peer.write_all(b"OK 0123456789abcdef0123456789abcdef\r\nERROR no fd passing\r\n")
+            .unwrap();
+        let hello = Message::method_return(1)
+            .with_sender("org.freedesktop.DBus")
+            .with_destination(":1.1")
+            .with_body(&(":1.1",));
+        peer.write_all(&hello.encode(1).0).unwrap();
+        let mut app = App::new();
+        app.add_module(RingModule::default())
+            .add_module(DBusModule::new().over(BusId::System, client));
+        let mut auth = Vec::new();
+        while !auth.ends_with(b"BEGIN\r\n") {
+            let mut byte = [0];
+            peer.read_exact(&mut byte).unwrap();
+            auth.push(byte[0]);
+        }
+        peer.set_nonblocking(true).unwrap();
+        app.add_module(WifiModule);
+        let call = *app.resource::<WifiStatus>().pending.keys().next().unwrap();
+        app.signal(MethodReply {
+            call,
+            result: Ok(Message::method_return(call.serial).with_body(&(props(&[
+                ("WirelessEnabled", Value::Bool(false)),
+                ("WirelessHardwareEnabled", Value::Bool(true)),
+            ]),))),
+        });
+        app.flush();
+        (app, peer)
+    }
+
+    fn read_call(app: &mut App, peer: &mut UnixStream, call: CallId) -> Message {
+        let mut bytes = Vec::new();
+        let mut chunk = [0; 4096];
+        for turn in 0..64 {
+            let (wake, _) = Message::signal("/org/example/Test", "org.example.Test", "Wake")
+                .with_sender(":1.2")
+                .encode(turn + 2);
+            peer.write_all(&wake).unwrap();
+            Ring::turn(app);
+            loop {
+                match peer.read(&mut chunk) {
+                    Ok(0) => panic!("test bus closed"),
+                    Ok(n) => bytes.extend_from_slice(&chunk[..n]),
+                    Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+                    Err(error) => panic!("reading test bus: {error}"),
+                }
+            }
+            while let Some(len) = Message::frame_len(&bytes).unwrap() {
+                let message = Message::parse(&bytes[..len], &mut VecDeque::new()).unwrap();
+                bytes.drain(..len);
+                if message.serial() == call.serial {
+                    return message;
+                }
+            }
+        }
+        panic!("Wi-Fi control request was not sent");
+    }
+
+    for enabled in [false, true] {
+        for fail in [false, true] {
+            let (mut app, mut peer) = setup();
+            app.signal(SetWifiEnabled(enabled));
+            app.flush();
+            let call = *app.resource::<WifiStatus>().pending.keys().next().unwrap();
+            assert_eq!(call.bus, BusId::System);
+
+            // A second click cannot replace an outstanding write.
+            app.signal(SetWifiEnabled(!enabled));
+            app.flush();
+            assert_eq!(app.resource::<WifiStatus>().pending.len(), 1);
+            assert_eq!(
+                app.resource::<WifiStatus>().snapshot.wireless_enabled,
+                Some(false)
+            );
+
+            let request = read_call(&mut app, &mut peer, call);
+            assert_eq!(request.destination().unwrap().as_str(), NM);
+            assert_eq!(request.path().unwrap().as_str(), PATH);
+            assert_eq!(
+                request.interface().unwrap().as_str(),
+                "org.freedesktop.DBus.Properties"
+            );
+            assert_eq!(request.member().unwrap().as_str(), "Set");
+            let (interface, property, value) = request.body::<(String, String, Value)>().unwrap();
+            assert_eq!(interface, NM);
+            assert_eq!(property, "WirelessEnabled");
+            assert!(matches!(value, Value::Bool(value) if value == enabled));
+
+            app.signal(MethodReply {
+                call,
+                result: if fail {
+                    Err(CallError::Timeout)
+                } else {
+                    Ok(Message::method_return(call.serial))
+                },
+            });
+            app.flush();
+            let wifi = app.resource::<WifiStatus>();
+            assert_eq!(wifi.pending.len(), 1);
+            assert!(matches!(
+                wifi.pending.values().next(),
+                Some(Request::Manager)
+            ));
+            assert_eq!(wifi.snapshot.wireless_enabled, None);
+        }
+    }
+}
+
+#[test]
 fn radio_and_connection_states() {
     let mut snapshot = Snapshot {
         valid: true,

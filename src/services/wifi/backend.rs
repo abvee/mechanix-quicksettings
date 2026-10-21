@@ -1,10 +1,32 @@
-//! Read-only NetworkManager client on mecha-wayland's system D-Bus connection.
+//! NetworkManager client on mecha-wayland's system D-Bus connection.
 use std::collections::HashSet;
 
 use super::interface::{AP, DEVICE, NM, PATH, WIRELESS};
 use super::types::{Request, Snapshot};
 use super::{WifiChanged, WifiState, WifiStatus};
 use mecha_wayland::prelude::*;
+
+/// Queue a software Wi-Fi enable/disable request. Requires `WifiModule` installed.
+/// Additional requests are ignored while a previous write is awaiting its reply.
+pub fn set_wifi_enabled(app: &mut App, enabled: bool) {
+    if app
+        .resource::<WifiStatus>()
+        .pending
+        .values()
+        .any(|request| matches!(request, Request::SetWirelessEnabled))
+    {
+        return;
+    }
+
+    let call = app
+        .resource_mut::<DBus>()
+        .system()
+        .object(NM, PATH)
+        .set_property(NM, "WirelessEnabled", Value::Bool(enabled));
+    app.resource_mut::<WifiStatus>()
+        .pending
+        .insert(call, Request::SetWirelessEnabled);
+}
 
 fn get_all(app: &mut App, path: ObjectPath, interface: &'static str, request: Request) {
     let call = app
@@ -91,6 +113,13 @@ pub(super) fn on_snapshot_reply(app: &mut App, event: &MethodReply) {
     };
 
     match request {
+        Request::SetWirelessEnabled => {
+            if let Err(error) = &event.result {
+                eprintln!("[wifi] setting WirelessEnabled failed: {error:?}");
+            }
+            // Read the actual state after either success or failure.
+            app.resource_mut::<WifiStatus>().dirty = true;
+        }
         Request::Manager => {
             let props = reply_props(event, NM);
             if app

@@ -1,4 +1,4 @@
-//! Read-only NetworkManager Wi-Fi status service.
+//! NetworkManager Wi-Fi status and radio control service.
 mod backend;
 mod interface;
 mod snapshot;
@@ -7,7 +7,8 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use types::{WifiChanged, WifiState, WifiStatus};
+pub use backend::set_wifi_enabled;
+pub use types::{SetWifiEnabled, WifiChanged, WifiState, WifiStatus};
 
 use std::collections::{HashMap, HashSet};
 
@@ -38,7 +39,8 @@ impl Module for WifiModule {
         });
         app.system(backend::on_snapshot_reply)
             .system(backend::on_signal)
-            .system(backend::on_disconnect);
+            .system(backend::on_disconnect)
+            .system(|app, event: &SetWifiEnabled| set_wifi_enabled(app, event.0));
 
         backend::request_snapshot(app);
     }
