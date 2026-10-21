@@ -45,9 +45,8 @@ pub(super) enum Request {
     Devices,
     /// Request made to network device, NetworkManager.Device interface
     Device(ObjectPath),
-    /// Request made to wifi device, NetworkManager.Wireless interface
-    /// Uses internal name established by Request::Device
-    Wireless,
+    /// Read Device.Wireless properties for this device path.
+    Wireless(ObjectPath),
     /// Get AccessPoint information
     AccessPoint(ObjectPath),
 }
@@ -68,7 +67,7 @@ pub(super) struct WifiDevice {
     pub(super) device: ObjectPath,
     /// None if device isn't connected to anything yet
     pub(super) access_point: Option<ObjectPath>,
-	 pub(super) connection: Option<Connection>
+    pub(super) connection: Option<Connection>,
 }
 
 pub(super) struct Connection {

@@ -139,15 +139,15 @@ pub(super) fn on_snapshot_reply(app: &mut App, event: &MethodReply) {
             {
                 // TODO: Request::Devices shouldn't be sent again until
                 // NetworkManager has been restarted.
-                get_all(app, path, WIRELESS, Request::Wireless);
+                get_all(app, path.clone(), WIRELESS, Request::Wireless(path));
             }
         }
-        Request::Wireless => {
+        Request::Wireless(device) => {
             let props = reply_props(event, WIRELESS);
             if let Some(path) = app
                 .resource_mut::<WifiStatus>()
                 .snapshot
-                .wireless(props.as_ref())
+                .wireless(&device, props.as_ref())
             {
                 get_all(app, path.clone(), AP, Request::AccessPoint(path));
             }

@@ -48,7 +48,7 @@ impl Snapshot {
             Some(WIFI_DEVICE) => {
                 self.connections.push(WifiDevice {
                     device: path.clone(),
-						  access_point: None,
+                    access_point: None,
                     connection: None,
                 });
 
@@ -72,8 +72,15 @@ impl Snapshot {
         }
     }
 
-    pub(super) fn wireless(&mut self, props: Option<&PropMap>) -> Option<ObjectPath> {
+    pub(super) fn wireless(
+        &mut self,
+        device: &ObjectPath,
+        props: Option<&PropMap>,
+    ) -> Option<ObjectPath> {
         let ap = props.and_then(|props| prop::<ObjectPath>(props, "ActiveAccessPoint"));
+        if let Some(wifi) = self.connections.iter_mut().find(|wifi| &wifi.device == device) {
+            wifi.access_point = ap.clone().filter(|path| path.as_str() != "/");
+        }
         match ap {
             Some(path) if path.as_str() != "/" => {
                 self.active_aps.insert(path.clone()).then_some(path)

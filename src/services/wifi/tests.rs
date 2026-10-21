@@ -164,19 +164,41 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     };
     let first = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/1").unwrap();
     let second = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/2").unwrap();
+    let first_device = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/1").unwrap();
+    let second_device = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/2").unwrap();
+    let device_props = props(&[
+        ("DeviceType", Value::U32(WIFI_DEVICE)),
+        ("State", Value::U32(ACTIVATED)),
+    ]);
+    assert!(snapshot.device(&first_device, Some(&device_props)));
+    assert!(snapshot.device(&second_device, Some(&device_props)));
     let no_ap = props(&[(
         "ActiveAccessPoint",
         Value::ObjectPath(ObjectPath::new("/").unwrap()),
     )]);
-    assert_eq!(snapshot.wireless(Some(&no_ap)), None);
+    assert_eq!(snapshot.wireless(&first_device, Some(&no_ap)), None);
+    assert!(snapshot.connections[0].access_point.is_none());
     assert_eq!(snapshot.state(), Some(WifiState::None));
     let first_props = props(&[("ActiveAccessPoint", Value::ObjectPath(first.clone()))]);
-    assert_eq!(snapshot.wireless(Some(&first_props)), Some(first.clone()));
-    assert_eq!(snapshot.wireless(Some(&first_props)), None);
+    // Replies can arrive out of device order.
+    assert_eq!(
+        snapshot.wireless(&second_device, Some(&first_props)),
+        Some(first.clone())
+    );
+    assert!(snapshot.connections[0].access_point.is_none());
+    assert_eq!(snapshot.connections[1].access_point, Some(first.clone()));
+    // Deduplicating the AP read must still record it on the other device.
+    assert_eq!(snapshot.wireless(&first_device, Some(&first_props)), None);
+    assert_eq!(snapshot.connections[0].access_point, Some(first.clone()));
     snapshot.access_point(&first, Some(&props(&[("Strength", Value::U8(35))])));
     assert_eq!(snapshot.state(), Some(WifiState::Low));
     let second_props = props(&[("ActiveAccessPoint", Value::ObjectPath(second.clone()))]);
-    assert_eq!(snapshot.wireless(Some(&second_props)), Some(second.clone()));
+    assert_eq!(
+        snapshot.wireless(&second_device, Some(&second_props)),
+        Some(second.clone())
+    );
+    assert_eq!(snapshot.connections[0].access_point, Some(first.clone()));
+    assert_eq!(snapshot.connections[1].access_point, Some(second.clone()));
     snapshot.access_point(&second, Some(&props(&[("Strength", Value::U8(80))])));
     assert_eq!(snapshot.state(), Some(WifiState::High));
     snapshot.access_point(&first, Some(&props(&[("Strength", Value::U8(15))])));
@@ -184,10 +206,14 @@ fn wireless_ap_reads_deduplicate_and_choose_strongest() {
     let unrelated = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/3").unwrap();
     snapshot.access_point(&unrelated, Some(&props(&[("Strength", Value::U8(100))])));
     assert_eq!(snapshot.strength, Some(80));
+    assert_eq!(snapshot.wireless(&first_device, Some(&no_ap)), None);
+    assert!(snapshot.connections[0].access_point.is_none());
+    assert_eq!(snapshot.connections[1].access_point, Some(second));
 }
 
 #[test]
 fn missing_ap_properties_do_not_forge_a_connection_or_strength() {
+    let device = ObjectPath::new("/org/freedesktop/NetworkManager/Devices/1").unwrap();
     for wireless in [None, Some(PropMap::new())] {
         let mut snapshot = Snapshot {
             valid: true,
@@ -195,7 +221,15 @@ fn missing_ap_properties_do_not_forge_a_connection_or_strength() {
             connected: true,
             ..Snapshot::default()
         };
-        assert_eq!(snapshot.wireless(wireless.as_ref()), None);
+        assert!(snapshot.device(
+            &device,
+            Some(&props(&[
+                ("DeviceType", Value::U32(WIFI_DEVICE)),
+                ("State", Value::U32(ACTIVATED)),
+            ]))
+        ));
+        assert_eq!(snapshot.wireless(&device, wireless.as_ref()), None);
+        assert!(snapshot.connections[0].access_point.is_none());
         assert_eq!(snapshot.state(), None);
     }
     let ap = ObjectPath::new("/org/freedesktop/NetworkManager/AccessPoint/1").unwrap();
