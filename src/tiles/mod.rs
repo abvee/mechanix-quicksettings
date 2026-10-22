@@ -61,12 +61,7 @@ impl Widget for Tiles {
         *s.component_mut::<LayoutStyle>(me).unwrap() = full_width(GRID_HEIGHT).column();
 
         let top = s.spawn(me, div().style(full_width(TILE_HEIGHT).row()));
-        let wifi = s.spawn(
-            top,
-            WifiBuilder {
-                font: b.font,
-            },
-        );
+        let wifi = s.spawn(top, WifiBuilder { font: b.font });
         let bluetooth = s.spawn(
             top,
             BluetoothBuilder {
