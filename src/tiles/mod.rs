@@ -61,13 +61,7 @@ impl Widget for Tiles {
         *s.component_mut::<LayoutStyle>(me).unwrap() = full_width(GRID_HEIGHT).column();
 
         let top = s.spawn(me, div().style(full_width(TILE_HEIGHT).row()));
-        let wifi = s.spawn(
-            top,
-            WifiBuilder {
-                font: b.font,
-                name: "Office 01".into(),
-            },
-        );
+        let wifi = s.spawn(top, WifiBuilder { font: b.font });
         let bluetooth = s.spawn(
             top,
             BluetoothBuilder {
@@ -84,12 +78,7 @@ impl Widget for Tiles {
         let settings = s.spawn(bottom, SettingsBuilder);
         let camera = s.spawn(bottom, CameraBuilder);
         let rotate = s.spawn(bottom, RotateBuilder);
-        let battery = s.spawn(
-            bottom,
-            BatteryBuilder {
-                font: b.font,
-            },
-        );
+        let battery = s.spawn(bottom, BatteryBuilder { font: b.font });
         // let secondary_display = s.spawn(bottom, DisplayTileBuilder);
 
         Tiles {
@@ -109,6 +98,15 @@ impl Widget for Tiles {
 
 /// Shared appearance only; each tile owns its children and future behavior.
 fn build_tile<W: Widget>(me: Handle<W>, s: &mut Spawner<'_, W>, svg: &[u8]) -> Handle<Icon> {
+    let sprite = load_icon(&mut s.resource_mut::<Atlas>(), svg);
+    build_tile_with_sprite(me, s, sprite)
+}
+
+fn build_tile_with_sprite<W: Widget>(
+    me: Handle<W>,
+    s: &mut Spawner<'_, W>,
+    sprite: SpriteId,
+) -> Handle<Icon> {
     *s.component_mut::<LayoutStyle>(me).unwrap() = full_width(TILE_HEIGHT)
         .width(percent(100.0 / TILE_COLUMNS as f32))
         .column()
@@ -117,7 +115,6 @@ fn build_tile<W: Widget>(me: Handle<W>, s: &mut Spawner<'_, W>, svg: &[u8]) -> H
     *s.component_mut::<Paint>(me).unwrap() = Paint::Quad(
         Quad::new(s.color(ColorRole::Surface)).border(1.0, s.color(ColorRole::OutlineVariant)),
     );
-    let sprite = load_icon(&mut s.resource_mut::<Atlas>(), svg);
     s.spawn(
         me,
         icon(sprite)

@@ -1,0 +1,139 @@
+//! Accumulate NetworkManager observations and derive the Wi-Fi state.
+use mecha_wayland::prelude::*;
+
+use super::interface::{ACTIVATED, WIFI_DEVICE};
+use super::types::{Connection, Snapshot, WifiDevice, WifiState};
+
+impl Snapshot {
+    pub(crate) fn radio_enabled(&self) -> Option<bool> {
+        self.wireless_enabled
+            .zip(self.wireless_hardware_enabled)
+            .map(|(enabled, hardware_enabled)| enabled && hardware_enabled)
+    }
+
+    pub(super) fn state(&self) -> Option<WifiState> {
+        if !self.valid {
+            return None;
+        }
+        match self.radio_enabled()? {
+            false => Some(WifiState::Disabled),
+            true if self.connected => Some(match self.strength {
+                Some(0..=24) | None => WifiState::None,
+                Some(25..=49) => WifiState::Low,
+                Some(50..=74) => WifiState::Medium,
+                Some(_) => WifiState::High,
+            }),
+            true => Some(WifiState::Disconnected),
+        }
+    }
+
+    pub(super) fn record_strength(&mut self, strength: u8) {
+        self.strength = Some(
+            self.strength
+                .map_or(strength, |current| current.max(strength)),
+        );
+    }
+
+    pub(super) fn manager(&mut self, props: Option<&PropMap>) -> bool {
+        self.wireless_enabled = props.and_then(|props| prop::<bool>(props, "WirelessEnabled"));
+        self.wireless_hardware_enabled =
+            props.and_then(|props| prop::<bool>(props, "WirelessHardwareEnabled"));
+        self.valid &= self.radio_enabled().is_some();
+        self.radio_enabled() == Some(true)
+    }
+
+    pub(super) fn device(&mut self, path: &ObjectPath, props: Option<&PropMap>) -> bool {
+        let Some(props) = props else {
+            self.valid = false;
+            return false;
+        };
+        match prop::<u32>(props, "DeviceType") {
+            Some(WIFI_DEVICE) => {
+                self.connections.push(WifiDevice {
+                    device: path.clone(),
+                    access_point: None,
+                    connection: None,
+                });
+
+                match prop::<u32>(props, "State") {
+                    Some(ACTIVATED) => {
+                        self.connected = true;
+                        true
+                    }
+                    Some(_) => false,
+                    None => {
+                        self.valid = false;
+                        false
+                    }
+                }
+            }
+            Some(_) => false,
+            None => {
+                self.valid = false;
+                false
+            }
+        }
+    }
+
+    pub(super) fn wireless(
+        &mut self,
+        device: &ObjectPath,
+        props: Option<&PropMap>,
+    ) -> Option<ObjectPath> {
+        let ap = props.and_then(|props| prop::<ObjectPath>(props, "ActiveAccessPoint"));
+        if let Some(wifi) = self
+            .connections
+            .iter_mut()
+            .find(|wifi| &wifi.device == device)
+        {
+            wifi.access_point = ap.clone().filter(|path| path.as_str() != "/");
+        }
+        match ap {
+            Some(path) if path.as_str() != "/" => {
+                self.active_aps.insert(path.clone()).then_some(path)
+            }
+            Some(_) => None,
+            None => {
+                self.valid = false;
+                None
+            }
+        }
+    }
+
+    pub(super) fn access_point(&mut self, path: &ObjectPath, props: Option<&PropMap>) {
+        if let Some(props) = props {
+            if self.active_aps.contains(path) {
+                if let Some(strength) = prop::<u8>(props, "Strength") {
+                    self.record_strength(strength);
+                    for wifi in &mut self.connections {
+                        if wifi.access_point.as_ref() == Some(path) {
+                            let connection = wifi.connection.get_or_insert_with(|| Connection {
+                                ssid: Vec::new(),
+                                strength,
+                            });
+                            connection.strength = strength;
+                        }
+                    }
+                }
+                if let Some(ssid) = prop::<Vec<u8>>(props, "Ssid") {
+                    for wifi in &mut self.connections {
+                        if wifi.access_point.as_ref() == Some(path) {
+                            if let Some(connection) = &mut wifi.connection {
+                                connection.ssid.clone_from(&ssid);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            self.valid = false;
+        }
+    }
+}
+
+fn prop<T: mecha_wayland::dbus::Decode + mecha_wayland::dbus::Type>(
+    props: &PropMap,
+    key: &str,
+) -> Option<T> {
+    props.get_as::<T>(key).and_then(Result::ok)
+}
